@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { useState } from 'react';
-import { useWeb3React } from "@web3-react/core"
 import { BtnWallet } from './BtnWallet';
 
 const menu = [
