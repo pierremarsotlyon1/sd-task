@@ -9,8 +9,9 @@ Features :
     * Market xSDT price
     * ROI
 
-![tokens](https://github.com/pierremarsotlyon1/sd-task/img-readme/tokens.png)
-![bonds](https://github.com/pierremarsotlyon1/sd-task/img-readme/bonds.png)
+![tokens](https://github.com/pierremarsotlyon1/sd-task/blob/main/img-readme/tokens.png?raw=true)
+![bonds](https://github.com/pierremarsotlyon1/sd-task/blob/main/img-readme/bonds.png?raw=true)
+
 
 Next features : 
 * Get bond price
