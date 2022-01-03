@@ -6,6 +6,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.31.0",
     "@web3-react/core": "^6.1.9",
     "@web3-react/injected-connector": "^6.0.7",
     "add": "^2.0.6",

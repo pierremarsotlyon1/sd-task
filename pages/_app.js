@@ -3,7 +3,7 @@ import '../css/global.css'
 import { Web3ReactProvider } from '@web3-react/core'
 import Web3 from 'web3'
 import Head from 'next/head'
-import { Navbar } from '../components/Navbar'
+import Navbar from '../components/Navbar'
 
 function getLibrary(provider) {
     return new Web3(provider)
