@@ -1,5 +1,5 @@
 import { useWeb3React } from "@web3-react/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { injected } from "../tools/metamask/connector";
 import { getPhantomProvider } from "../tools/phantom/phantom";
 import { isWalletConnected } from "../tools/wallet";
@@ -7,13 +7,34 @@ import { isWalletConnected } from "../tools/wallet";
 export const BtnWallet = () => {
     const { active, account, library, connector, activate, deactivate } = useWeb3React();
     const [hidden, setHidden] = useState(true);
+    const [type, setType] = useState(-1);
+    const [walletConnected, setWalletConnected] = useState(false);
 
     const openDialog = () => setHidden(false);
     const closeDialog = () => setHidden(true);
 
-    const disconnect = () => deactivate();
+    const onConnect = type => {
+        setType(type);
+        setWalletConnected(true);
+    };
 
-    if (isWalletConnected(active)) {
+    const disconnect = () => {
+        switch (type) {
+            case 1:
+                deactivate();
+                break;
+            case 2:
+                window.solana.disconnect();
+                break;
+            case 3:
+                //Ledger
+                break;
+        }
+        setHidden(true);
+        setWalletConnected(false);
+    };
+
+    if (walletConnected) {
         return (
             <button className='mx-8 bg-purple-600 p-1 rounded text-white text-1sm' onClick={disconnect}>
                 Disconnect
@@ -25,7 +46,7 @@ export const BtnWallet = () => {
                 <button className='mx-8 bg-purple-600 p-1 rounded text-white text-1sm' onClick={openDialog}>
                     Connect wallet
                 </button>
-                <DialogSelectWallet hidden={hidden} onClose={closeDialog} />
+                <DialogSelectWallet hidden={hidden} onClose={closeDialog} onConnect={onConnect} />
             </>
         )
     }
@@ -33,8 +54,20 @@ export const BtnWallet = () => {
 
 const DialogSelectWallet = (props) => {
     const { active, account, library, connector, activate, deactivate } = useWeb3React();
+    const [phantomAvailable, setPhantomAvailable] = useState(null);
 
     const styles = "fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full " + (props.hidden ? "hidden" : "");
+
+    useEffect(() => {
+        console.log(phantomAvailable);
+        console.log(window);
+        console.log(phantomAvailable !== null || !window);
+        if(phantomAvailable !== null || !window) {
+            return;
+        }
+
+        setPhantomAvailable(!!getPhantomProvider());
+    });
 
     const connect = (type) => {
         let promise = Promise.resolve();
@@ -58,23 +91,27 @@ const DialogSelectWallet = (props) => {
         }
 
         promise
-            .then(resp => {
-                switch (type) {
-                    case 1:
-                        break;
-                    case 2:
-                        console.log(resp.publicKey.toString());
-                        break;
-                    case 3:
-                        //Ledger
-                        break;
-                }
-
-            })
+            .then(() => props.onConnect(type))
             .finally(() => props.onClose());
     };
 
-    const havePhantomExtension = !!getPhantomProvider();
+    let blockPhantom = null;
+
+    if (phantomAvailable) {
+        blockPhantom = <li
+            className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
+            onClick={() => connect(2)}
+        >Phantom</li>;
+    }
+    else if (phantomAvailable === false) {
+        blockPhantom = <li
+            className="m-2 text-base text-red-500"
+        >Phantom unvailable</li>;
+    } else {
+        blockPhantom = <li
+            className="m-2 text-base text-gray-500"
+        >Phantom fetching ...</li>;
+    }
 
     return (
         <div className={styles}>
@@ -87,12 +124,7 @@ const DialogSelectWallet = (props) => {
                             className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
                             onClick={() => connect(1)}
                         >Metamask</li>
-                        {
-                            havePhantomExtension && <li
-                                className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
-                                onClick={() => connect(2)}
-                            >Phantom</li>
-                        }
+                        {blockPhantom}
                         <li
                             className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
                             onClick={() => connect(3)}
@@ -100,10 +132,10 @@ const DialogSelectWallet = (props) => {
                     </ul>
                     <div className="items-center px-4 py-3">
                         <button
-                            className="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300"
+                            className="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm focus:outline-none focus:ring-2"
                             onClick={() => props.onClose()}
                         >
-                            Fermer
+                            Close
                         </button>
                     </div>
                 </div>

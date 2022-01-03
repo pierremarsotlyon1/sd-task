@@ -26,3 +26,15 @@ export const isPhantomConnected = () => {
         return null;
     }
 }
+
+export const getPhantomPublicKey = () => {
+    try {
+        if ("solana" in window) {
+            return window.solana?.publicKey.toString();
+        }
+        return null;
+    }
+    catch (e) {
+        return null;
+    }
+};
