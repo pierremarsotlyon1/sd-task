@@ -140,6 +140,41 @@ export default class Bonds extends React.Component {
         signed = await window.solana.signTransaction(delegateTransaction);
         signature = await connection.sendRawTransaction(signed.serialize());
         await connection.confirmTransaction(signature);
+
+        console.log("staking done");
+
+        const deactivateTransaction = new web3.Transaction({
+            feePayer: fromPublicKey,
+            recentBlockhash: blockhashObj.blockhash,
+        }).add(
+            web3.StakeProgram.deactivate({
+                stakePubkey: stakeAccount.publicKey,
+                authorizedPubkey: fromPublicKey,
+            })
+        );
+
+        signed = await window.solana.signTransaction(deactivateTransaction);
+        signature = await connection.sendRawTransaction(signed.serialize());
+        await connection.confirmTransaction(signature);
+
+        console.log("desactivate staking done");
+
+        const withdrawTransaction = new web3.Transaction({
+            feePayer: fromPublicKey,
+            recentBlockhash: blockhashObj.blockhash,
+        }).add(
+            web3.StakeProgram.withdraw({
+                stakePubkey: stakeAccount.publicKey,
+                authorizedPubkey: fromPublicKey,
+                toPubkey: fromPublicKey,
+                lamports: stakeBalance,
+            })
+        );
+        
+        signed = await window.solana.signTransaction(withdrawTransaction);
+        signature = await connection.sendRawTransaction(signed.serialize());
+        await connection.confirmTransaction(signature);
+        console.log("withdraw funds done");
     };
 
     /**
@@ -147,9 +182,28 @@ export default class Bonds extends React.Component {
      */
     refreshStakingInfo = async () => {
         const connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
-        const stakeState = await connection.getStakeActivation(stakeAccount.publicKey);
+        const accountInfo = await connection.getAccountInfo(window.solana.publicKey);
+        console.log(accountInfo);
 
-        this.setState({stakeState: stakeState.state});
+        const accounts = await connection.getProgramAccounts(
+            accountInfo.owner, // new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+            {
+              filters: [
+                {
+                  dataSize: 165, // number of bytes
+                },
+                {
+                  memcmp: {
+                    offset: 32, // number of bytes
+                    bytes: accountInfo.owner.toString(), // base58 encoded string
+                  },
+                },
+              ],
+            }
+          );
+          console.log(accounts);
+
+        console.log(accounts.filter(a => a.account.executable));
     };
 
     /**
