@@ -63,15 +63,15 @@ const DialogSelectWallet = (props) => {
     const styles = "fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full " + (props.hidden ? "hidden" : "");
 
     useEffect(() => {
-        if(phantomAvailable !== null || !window) {
+        if (phantomAvailable !== null || typeof window === "undefined") {
             return;
         }
 
         setPhantomAvailable(!!getPhantomProvider());
         TransportWebUSB.isSupported()
-                    .then(isSupported => {
-                        setLedgerSupported(isSupported);
-                    });
+            .then(isSupported => {
+                setLedgerSupported(isSupported);
+            });
     });
 
     const connect = async (type) => {
