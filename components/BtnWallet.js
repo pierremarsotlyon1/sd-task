@@ -5,7 +5,7 @@ import { getPhantomProvider } from "../tools/phantom/phantom";
 import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
 import Solana from "@ledgerhq/hw-app-solana";
 import { setLedgerProvider } from "../tools/ledger";
-import { getWalletType, LEGDER, METAMASK, onDisconnect, PHANTOM, setWalletType } from "../tools/wallet";
+import { getWalletType, LEGDER, METAMASK, onDisconnect, PHANTOM, setWalletType, UNDEFINED } from "../tools/wallet";
 
 export const BtnWallet = () => {
     const { active, account, library, connector, activate, deactivate } = useWeb3React();
@@ -34,6 +34,7 @@ export const BtnWallet = () => {
         }
         setHidden(true);
         setWalletConnected(false);
+        setWalletType(UNDEFINED);
         onDisconnect();
     };
 

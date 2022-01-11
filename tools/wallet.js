@@ -3,10 +3,11 @@ import { getLedgerProvider } from "./ledger";
 import { getPhantomProvider, isPhantomConnected } from "./phantom/phantom";
 import { getConnection } from "./solanaUtils";
 
-let walletType = -1;
+export const UNDEFINED = -1;
 export const METAMASK = 1;
 export const PHANTOM = 2;
 export const LEGDER = 3;
+let walletType = UNDEFINED;
 let listenersOnConnect = [];
 let listenersOnDisconnect = [];
 
@@ -29,8 +30,10 @@ export function removeOnWalletDisconnect(listener) {
 export function setWalletType(type) {
     walletType = type;
 
-    for (const listener of listenersOnConnect) {
-        listener();
+    if (walletType !== -1) {
+        for (const listener of listenersOnConnect) {
+            listener();
+        }
     }
 }
 

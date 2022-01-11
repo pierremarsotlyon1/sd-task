@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { getConnection, getStakeAccounts, stake, withdraw } from '../tools/solanaUtils';
-import { getBalance, getProvider, getPublicKey, getWalletType, PHANTOM, removeOnWalletConnect, removeOnWalletDisconnect, setOnWalletConnect, setOnWalletDisconnect } from '../tools/wallet';
+import { getBalance, getProvider, getPublicKey, getWalletType, PHANTOM, removeOnWalletConnect, removeOnWalletDisconnect, setOnWalletConnect, setOnWalletDisconnect, UNDEFINED } from '../tools/wallet';
 const web3 = require("@solana/web3.js");
 
 export default class Bonds extends React.Component {
@@ -20,6 +20,10 @@ export default class Bonds extends React.Component {
     componentDidMount() {
         setOnWalletConnect(this.onConnect);
         setOnWalletDisconnect(this.handleDisconnect);
+
+        if (getWalletType !== UNDEFINED) {
+            this.onConnect();
+        }
     }
 
     componentWillUnmount() {
@@ -35,7 +39,9 @@ export default class Bonds extends React.Component {
         }
 
         const pubkey = await getPublicKey();
-        this.setState({ isConnected: true, publicKey: pubkey.toString() }, () => this.refreshStakingInfo());
+        if (pubkey) {
+            this.setState({ isConnected: true, publicKey: pubkey.toString() }, () => this.refreshStakingInfo());
+        }
     }
 
     /**
