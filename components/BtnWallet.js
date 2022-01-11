@@ -2,36 +2,39 @@ import { useWeb3React } from "@web3-react/core";
 import { useEffect, useState } from "react";
 import { injected } from "../tools/metamask/connector";
 import { getPhantomProvider } from "../tools/phantom/phantom";
-import { isWalletConnected } from "../tools/wallet";
+import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
+import Solana from "@ledgerhq/hw-app-solana";
+import { setLedgerProvider } from "../tools/ledger";
+import { getWalletType, LEGDER, METAMASK, onDisconnect, PHANTOM, setWalletType } from "../tools/wallet";
 
 export const BtnWallet = () => {
     const { active, account, library, connector, activate, deactivate } = useWeb3React();
     const [hidden, setHidden] = useState(true);
-    const [type, setType] = useState(-1);
     const [walletConnected, setWalletConnected] = useState(false);
 
     const openDialog = () => setHidden(false);
     const closeDialog = () => setHidden(true);
 
     const onConnect = type => {
-        setType(type);
+        setWalletType(type);
         setWalletConnected(true);
     };
 
     const disconnect = () => {
-        switch (type) {
-            case 1:
+        switch (getWalletType()) {
+            case METAMASK:
                 deactivate();
                 break;
-            case 2:
+            case PHANTOM:
                 window.solana.disconnect();
                 break;
-            case 3:
-                //Ledger
+            case LEGDER:
+                setLedgerProvider(null);
                 break;
         }
         setHidden(true);
         setWalletConnected(false);
+        onDisconnect();
     };
 
     if (walletConnected) {
@@ -55,44 +58,45 @@ export const BtnWallet = () => {
 const DialogSelectWallet = (props) => {
     const { active, account, library, connector, activate, deactivate } = useWeb3React();
     const [phantomAvailable, setPhantomAvailable] = useState(null);
+    const [ledgerSupported, setLedgerSupported] = useState(null);
 
     const styles = "fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full " + (props.hidden ? "hidden" : "");
 
     useEffect(() => {
-        console.log(phantomAvailable);
-        console.log(window);
-        console.log(phantomAvailable !== null || !window);
         if(phantomAvailable !== null || !window) {
             return;
         }
 
         setPhantomAvailable(!!getPhantomProvider());
+        TransportWebUSB.isSupported()
+                    .then(isSupported => {
+                        setLedgerSupported(isSupported);
+                    });
     });
 
-    const connect = (type) => {
-        let promise = Promise.resolve();
-
+    const connect = async (type) => {
         switch (type) {
-            case 1:
-                promise = activate(injected);
+            case METAMASK:
+                await activate(injected);
                 break;
-            case 2:
+            case PHANTOM:
                 try {
-                    promise = window.solana.connect();
+                    await window.solana.connect();
                 } catch (err) {
                     console.error(err);
                 }
                 break;
-            case 3:
-                //Ledger
+            case LEGDER:
+                const transport = await TransportWebUSB.create();
+                const solana = new Solana(transport);
+                setLedgerProvider(solana);
                 break;
             default:
                 console.error("unknow wallet type");
         }
 
-        promise
-            .then(() => props.onConnect(type))
-            .finally(() => props.onClose());
+        props.onConnect(type);
+        props.onClose();
     };
 
     let blockPhantom = null;
@@ -100,7 +104,7 @@ const DialogSelectWallet = (props) => {
     if (phantomAvailable) {
         blockPhantom = <li
             className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
-            onClick={() => connect(2)}
+            onClick={() => connect(PHANTOM)}
         >Phantom</li>;
     }
     else if (phantomAvailable === false) {
@@ -113,6 +117,14 @@ const DialogSelectWallet = (props) => {
         >Phantom fetching ...</li>;
     }
 
+    let ledger = null;
+    if (ledgerSupported) {
+        ledger = <li
+            className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
+            onClick={() => connect(LEGDER)}
+        >Ledger</li>;
+    }
+
     return (
         <div className={styles}>
             <div
@@ -122,13 +134,10 @@ const DialogSelectWallet = (props) => {
                     <ul className="mt-2 px-7 py-3">
                         <li
                             className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
-                            onClick={() => connect(1)}
+                            onClick={() => connect(METAMASK)}
                         >Metamask</li>
                         {blockPhantom}
-                        <li
-                            className="m-2 text-base text-black cursor-pointer hover:text-gray-500"
-                            onClick={() => connect(3)}
-                        >Ledger</li>
+                        {ledger}
                     </ul>
                     <div className="items-center px-4 py-3">
                         <button

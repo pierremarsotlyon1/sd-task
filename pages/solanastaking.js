@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { getConnection, getPhantomProvider, getPhantomPublicKey, getStakeAccounts, isPhantomConnected } from '../tools/phantom/phantom';
+import { getConnection, getStakeAccounts, stake, withdraw } from '../tools/solanaUtils';
+import { getBalance, getProvider, getPublicKey, getWalletType, PHANTOM, removeOnWalletConnect, removeOnWalletDisconnect, setOnWalletConnect, setOnWalletDisconnect } from '../tools/wallet';
 const web3 = require("@solana/web3.js");
 
 export default class Bonds extends React.Component {
@@ -17,15 +18,24 @@ export default class Bonds extends React.Component {
     };
 
     componentDidMount() {
-        const provider = getPhantomProvider();
-        if (provider) {
-            window.solana.on("connect", this.handleConnect);
-            window.solana.on('disconnect', this.handleConnect);
+        setOnWalletConnect(this.onConnect);
+        setOnWalletDisconnect(this.handleDisconnect);
+    }
 
-            this.setBalance();
-            this.setStakeAccounts();
-            this.setState({ isConnected: isPhantomConnected() });
+    componentWillUnmount() {
+        removeOnWalletConnect(this.onConnect);
+        removeOnWalletDisconnect(this.handleDisconnect);
+    }
+
+    onConnect = async () => {
+        if (getWalletType() === PHANTOM) {
+            const provider = await getProvider();
+            provider.on("connect", this.handleConnect);
+            provider.on('disconnect', this.handleDisconnect);
         }
+
+        const pubkey = await getPublicKey();
+        this.setState({ isConnected: true, publicKey: pubkey.toString() }, () => this.refreshStakingInfo());
     }
 
     /**
@@ -59,11 +69,7 @@ export default class Bonds extends React.Component {
      * Get wallet balance in devnet
      */
     setBalance = async () => {
-        if (!window?.solana?.publicKey) {
-            return;
-        }
-        const connection = getConnection();
-        const balance = await connection.getBalance(window.solana.publicKey);
+        const balance = await getBalance();
         this.setState({ balance: balance / 1000000000 });
     };
 
@@ -71,100 +77,45 @@ export default class Bonds extends React.Component {
      * Get all info about stake accounts + rewards
      */
     setStakeAccounts = async () => {
-        if (!window?.solana?.publicKey) {
-            return;
-        }
-
-        const connection = getConnection();
-        const stakeAccounts = await getStakeAccounts(connection, window.solana.publicKey);
-
-        for (const stakeAccount of stakeAccounts) {
-            const stakeBalance = await connection.getBalance(stakeAccount.pubkey);
-            stakeAccount.stakeBalance = stakeAccount.account.lamports / 1000000000;
-            stakeAccount.rewards = stakeBalance / 1000000000 - stakeAccount.stakeBalance;
-        }
+        const stakeAccounts = await getStakeAccounts();
         this.setState({ stakeAccounts });
     }
 
     /**
      * Check if phantom is connected and fetch balance
      */
-    handleConnect = () => {
+    handleConnect = async () => {
+        const provider = await getProvider();
         this.setState(
-            { isConnected: isPhantomConnected() },
+            { isConnected: !!provider },
             () => this.refreshStakingInfo()
+        );
+    };
+
+    handleDisconnect = async () => {
+        this.setState(
+            {
+                isConnected: false,
+                airdropPending: false,
+                publicKey: "",
+                balance: 0,
+                error: null,
+                stakeState: "",
+                balanceToStake: "",
+                stakeAccounts: []
+            },
         );
     };
 
     /**
      * Stake token on validator
      */
-    stake = async () => {
+    doStake = async () => {
         if (this.state.balance === 0) {
             return;
         }
 
-        const connection = getConnection();
-        const fromPublicKey = window.solana.publicKey;
-
-        // Create stake account to manage the staking
-        const stakeAccount = web3.Keypair.generate();
-
-        // Balance to stake
-        const balanceToStake = parseFloat(this.state.balanceToStake);
-
-        let blockhashObj = await connection.getRecentBlockhash();
-        const createAccountTransaction = new web3.Transaction({
-            feePayer: fromPublicKey,
-            recentBlockhash: blockhashObj.blockhash,
-        }).add(
-            web3.StakeProgram.createAccount({
-                fromPubkey: fromPublicKey,
-                authorized: new web3.Authorized(fromPublicKey, fromPublicKey),
-                lamports: balanceToStake * 1000000000,
-                lockup: new web3.Lockup(0, 0, fromPublicKey),
-                stakePubkey: stakeAccount.publicKey
-            })
-        );
-
-        // stakeAccount must sign the tx because it's a new account
-        createAccountTransaction.partialSign(stakeAccount);
-
-        let signed = await window.solana.signTransaction(createAccountTransaction);
-        let signature = await connection.sendRawTransaction(signed.serialize());
-        await connection.confirmTransaction(signature);
-
-        // Check that stake is available
-
-        const stakeBalance = await connection.getBalance(stakeAccount.publicKey);
-        console.log(`Stake balance: ${stakeBalance}`)
-
-        // We can verify the state of our stake. This may take some time to become active
-        const stakeState = await connection.getStakeActivation(stakeAccount.publicKey);
-        console.log(`Stake Stake: ${stakeState.state}`);
-
-        // To delegate our stake, we get the current vote accounts and choose the first
-        const voteAccount = await this.getVoteAccount();
-        const votePubkey = new web3.PublicKey(voteAccount.votePubkey);
-
-        // We can then delegate our stake to the voteAccount
-        blockhashObj = await connection.getRecentBlockhash();
-        const delegateTransaction = new web3.Transaction({
-            feePayer: fromPublicKey,
-            recentBlockhash: blockhashObj.blockhash,
-        }).add(
-            web3.StakeProgram.delegate({
-                stakePubkey: stakeAccount.publicKey,
-                authorizedPubkey: fromPublicKey,
-                votePubkey: votePubkey,
-            })
-        );
-
-        signed = await window.solana.signTransaction(delegateTransaction);
-        signature = await connection.sendRawTransaction(signed.serialize());
-        await connection.confirmTransaction(signature);
-
-        console.log("staking done");
+        await stake(parseFloat(this.state.balanceToStake));
 
         // Refresh data and UI
         this.refreshStakingInfo();
@@ -173,68 +124,22 @@ export default class Bonds extends React.Component {
     /**
      * Withdraw few SOL from delegator
      */
-    withdraw = async (pubKey, stakeBalance) => {
-        console.log("stakeBalance : " + stakeBalance);
-        const connection = getConnection();
-        const fromPublicKey = window.solana.publicKey;
-        const blockhashObj = await connection.getRecentBlockhash();
+    doWithdraw = async (pubKey, stakeBalance) => {
+        await withdraw(pubKey, stakeBalance);
 
-        // If stake account desactivated, we can withdraw funds directly
-        let stakeState = await connection.getStakeActivation(pubKey);
-        if (stakeState.state !== "inactive" && stakeState.state !== "deactivating") {
-            const deactivateTransaction = new web3.Transaction({
-                feePayer: fromPublicKey,
-                recentBlockhash: blockhashObj.blockhash,
-            }).add(
-                web3.StakeProgram.deactivate({
-                    stakePubkey: pubKey,
-                    authorizedPubkey: fromPublicKey,
-                })
-            );
-
-            let signed = await window.solana.signTransaction(deactivateTransaction);
-            let signature = await connection.sendRawTransaction(signed.serialize());
-            await connection.confirmTransaction(signature);
-        }
-
-        stakeState = await connection.getStakeActivation(pubKey);
-        if (stakeState.state === "inactive") {
-            // Withdraw all stake funds
-            const withdrawTransaction = new web3.Transaction({
-                feePayer: fromPublicKey,
-                recentBlockhash: blockhashObj.blockhash,
-            }).add(
-                web3.StakeProgram.withdraw({
-                    stakePubkey: pubKey,
-                    authorizedPubkey: fromPublicKey,
-                    toPubkey: fromPublicKey,
-                    lamports: stakeBalance,
-                })
-            );
-
-            let signed = await window.solana.signTransaction(withdrawTransaction);
-            let signature = await connection.sendRawTransaction(signed.serialize());
-            await connection.confirmTransaction(signature);
-        }
-        else {
-            this.showError("You could withdraw your funds when your stake account will be inactive");
-        }
-
+        // Refresh data and UI
         this.refreshStakingInfo();
     };
-
-    getVoteAccount = async () => {
-        const connection = getConnection();
-        const voteAccounts = await connection.getVoteAccounts();
-        return voteAccounts.current[0];
-    }
 
     /**
      * Get staking informations
      */
     refreshStakingInfo = async () => {
-        this.setStakeAccounts();
-        this.setBalance();
+        if (!this.state.isConnected) {
+            return;
+        }
+        await this.setStakeAccounts();
+        await this.setBalance();
     };
 
     /**
@@ -260,16 +165,9 @@ export default class Bonds extends React.Component {
     }
 
     render() {
-        const provider = getPhantomProvider();
-        if (!provider) {
-            return <div className="flex flex-row items-center justify-center mt-8">
-                <p>Phantom wallet not detected, please install it</p>
-            </div>
-        }
-
         if (!this.state.isConnected) {
             return <div className="flex flex-row items-center justify-center mt-8">
-                <p>Phantom wallet not connected</p>
+                <p>Wallet not connected</p>
             </div>
         }
 
@@ -277,7 +175,7 @@ export default class Bonds extends React.Component {
             <div className="flex flex-row items-center justify-center mt-8">
                 <div className="solanadevnet">
                     <div className='flex flex-col justify-center'>
-                        <h3 className='text-center'>Devnet {getPhantomPublicKey()}</h3>
+                        <h3 className='text-center'>{this.state.publicKey}</h3>
                         <p className='devnet-balance'>Balance : {this.state.balance}</p>
                         <button
                             className='mb-8 px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm'
@@ -292,7 +190,7 @@ export default class Bonds extends React.Component {
                         </div>
                         <button
                             className='px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full shadow-sm'
-                            onClick={() => this.stake()}
+                            onClick={() => this.doStake()}
                             disabled={!this.state.balanceToStake || this.state.balanceToStake === "0"}
                         >Stake</button>
                     </div>
@@ -308,7 +206,7 @@ export default class Bonds extends React.Component {
                                             <p>Rewards : {stakeAccount.rewards} </p>
                                             <button
                                                 className='mt-2 px-4 py-2 bg-orange-400 text-white text-base font-medium rounded-md shadow-sm'
-                                                onClick={() => this.withdraw(stakeAccount.pubkey, stakeAccount.account.lamports)}>
+                                                onClick={() => this.doWithdraw(stakeAccount.pubkey, stakeAccount.account.lamports)}>
                                                 Withdraw all
                                             </button>
                                         </div>
