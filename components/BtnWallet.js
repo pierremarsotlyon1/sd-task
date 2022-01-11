@@ -68,6 +68,13 @@ const DialogSelectWallet = (props) => {
             return;
         }
 
+        const id = setInterval(() => {
+            const phAv = !!getPhantomProvider();
+            setPhantomAvailable(phAv);
+            if (phAv) {
+                clearInterval(id);
+            }
+        }, 1000);
         setPhantomAvailable(!!getPhantomProvider());
         TransportWebUSB.isSupported()
             .then(isSupported => {
