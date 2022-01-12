@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { getConnection, getStakeAccounts, stake, withdraw } from '../tools/solanaUtils';
-import { getBalance, getProvider, getPublicKey, getWalletType, PHANTOM, removeOnWalletConnect, removeOnWalletDisconnect, setOnWalletConnect, setOnWalletDisconnect, UNDEFINED } from '../tools/wallet';
+import { DEVNET, getBalance, getProvider, getPublicKey, getWalletType, MAINNET, PHANTOM, removeOnWalletConnect, removeOnWalletDisconnect, setNetwork, setOnWalletConnect, setOnWalletDisconnect, UNDEFINED } from '../tools/wallet';
 const web3 = require("@solana/web3.js");
 
 export default class Bonds extends React.Component {
@@ -15,6 +15,8 @@ export default class Bonds extends React.Component {
         stakeState: "",
         balanceToStake: "",
         stakeAccounts: [],
+        network: -1,
+        loading: false,
     };
 
     componentDidMount() {
@@ -48,7 +50,7 @@ export default class Bonds extends React.Component {
      * Get SOL on devnet
      */
     requestAirdrop = () => {
-        if (this.state.airdropPending) {
+        if (this.state.airdropPending || this.state.network !== DEVNET) {
             return;
         }
 
@@ -144,9 +146,24 @@ export default class Bonds extends React.Component {
         if (!this.state.isConnected) {
             return;
         }
-        await this.setStakeAccounts();
-        await this.setBalance();
+
+        this.setState({ loading: true }, async () => {
+            await this.setStakeAccounts();
+            await this.setBalance();
+
+            this.setState({ loading: false });
+        });
     };
+
+    /**
+     * network change
+     */
+    networkChange = network => {
+        this.setState({ network }, () => {
+            setNetwork(network);
+            this.onConnect();
+        });
+    }
 
     /**
      * Set the number of sol to delegate
@@ -177,16 +194,43 @@ export default class Bonds extends React.Component {
             </div>
         }
 
+        if (this.state.network === -1) {
+            return (
+                <div className="flex flex-row items-center justify-center mt-8">
+                    <div className="solanadevnet">
+                        <BtnNetworks selected={this.state.network} onChanged={this.networkChange} />
+                    </div>
+                </div>
+            )
+        }
+
+        if (this.state.loading) {
+            return (
+                <div className="flex flex-row items-center justify-center mt-8">
+                    <div className="solanadevnet">
+                        <BtnNetworks selected={this.state.network} onChanged={this.networkChange} />
+                        <p>Loading ...</p>
+                    </div>
+                </div>
+            )
+        }
+
+        let airdrop = null;
+        if (this.state.network === DEVNET) {
+            airdrop = <button
+                className='mb-8 px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm'
+                onClick={() => this.requestAirdrop()}
+            >Request airdrop</button>;
+        }
+
         return (
             <div className="flex flex-row items-center justify-center mt-8">
                 <div className="solanadevnet">
+                    <BtnNetworks selected={this.state.network} onChanged={this.networkChange} />
                     <div className='flex flex-col justify-center'>
                         <h3 className='text-center'>{this.state.publicKey}</h3>
                         <p className='devnet-balance'>Balance : {this.state.balance}</p>
-                        <button
-                            className='mb-8 px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm'
-                            onClick={() => this.requestAirdrop()}
-                        >Request airdrop</button>
+                        {airdrop}
                     </div>
 
                     <div className='flex flex-col justify-center mt-6'>
@@ -230,4 +274,26 @@ export default class Bonds extends React.Component {
             </div>
         )
     }
+}
+
+const BtnNetworks = (props) => {
+
+    const stylesMainnet = 'mb-8 px-4 py-2 text-white text-base font-medium rounded-md w-full shadow-sm '
+        + (props.selected === MAINNET ? "bg-green-500" : "bg-gray-500");
+
+    const stylesDevnet = 'mb-8 px-4 py-2 text-white text-base font-medium rounded-md w-full shadow-sm '
+        + (props.selected === DEVNET ? "bg-green-500" : "bg-gray-500");
+
+    return (
+        <div className='flex flex-row justify-around'>
+            <button
+                className={stylesMainnet}
+                onClick={() => props.onChanged(MAINNET)}
+            >Mainnet</button>
+            <button
+                className={stylesDevnet}
+                onClick={() => props.onChanged(DEVNET)}
+            >Devnet</button>
+        </div>
+    )
 }

@@ -1,5 +1,3 @@
-const web3 = require("@solana/web3.js");
-
 export const getPhantomProvider = () => {
     try {
         if ("solana" in window) {

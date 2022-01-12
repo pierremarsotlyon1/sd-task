@@ -7,9 +7,21 @@ export const UNDEFINED = -1;
 export const METAMASK = 1;
 export const PHANTOM = 2;
 export const LEGDER = 3;
+export const MAINNET = 1;
+export const DEVNET = 2;
+let currentNetwork = -1;
+
 let walletType = UNDEFINED;
 let listenersOnConnect = [];
 let listenersOnDisconnect = [];
+
+export function setNetwork(network) {
+    currentNetwork = network;
+}
+
+export function getNetwork() {
+    return currentNetwork;
+}
 
 export function setOnWalletConnect(listener) {
     listenersOnConnect.push(listener);
@@ -84,6 +96,5 @@ export async function getBalance() {
     const pukKey = await getPublicKey();
     const connection = getConnection();
     const balance = await connection.getBalance(pukKey);
-    console.log(balance);
     return balance;
 }

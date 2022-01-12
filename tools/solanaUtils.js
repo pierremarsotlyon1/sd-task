@@ -1,9 +1,11 @@
-import { getProvider, getPublicKey, getWalletType, PHANTOM } from "./wallet";
+import { getNetwork, getProvider, getPublicKey, getWalletType, MAINNET, PHANTOM } from "./wallet";
 const web3 = require("@solana/web3.js");
-const bs58 = require('bs58')
 
 export function getConnection() {
-    return new web3.Connection(web3.clusterApiUrl('mainnet-beta'), 'confirmed');
+    const currentNetwork = getNetwork();
+    const url = currentNetwork === MAINNET ? "mainnet-beta" : "devnet";
+
+    return new web3.Connection(web3.clusterApiUrl(url), 'confirmed');
 }
 
 export async function getStakeAccounts() {
@@ -94,13 +96,17 @@ async function getVoteAccount() {
     const connection = getConnection();
     const voteAccounts = await connection.getVoteAccounts();
 
-    // We select the StakeDAO validator
-    for (const v of voteAccounts.current) {
-        if (v.votePubkey === process.env.solanaValidator) {
-            return v;
+    if (getNetwork() === MAINNET) {
+        // We select the StakeDAO validator
+        for (const v of voteAccounts.current) {
+            if (v.votePubkey === process.env.solanaValidator) {
+                return v;
+            }
         }
     }
-
+    else {
+        return voteAccounts.current[0];
+    }
     return null;
 }
 
