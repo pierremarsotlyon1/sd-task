@@ -17,6 +17,7 @@ export default class Bonds extends React.Component {
         stakeAccounts: [],
         network: -1,
         loading: false,
+        idRefreshAuto: -1,
     };
 
     componentDidMount() {
@@ -26,11 +27,17 @@ export default class Bonds extends React.Component {
         if (getWalletType !== UNDEFINED) {
             this.onConnect();
         }
+
+        // Refresh data automatically
+        const idRefreshAuto = setInterval(this.setStakeAccounts.bind(this), 60 * 1000);
+        this.setState({ idRefreshAuto });
     }
 
     componentWillUnmount() {
         removeOnWalletConnect(this.onConnect);
         removeOnWalletDisconnect(this.handleDisconnect);
+
+        clearInterval(this.state.idRefreshAuto);
     }
 
     onConnect = async () => {
@@ -41,6 +48,11 @@ export default class Bonds extends React.Component {
         }
 
         const pubkey = await getPublicKey();
+        if (pubkey && this.state.network === -1) {
+            this.setState({ isConnected: true });
+            return;
+        }
+        
         if (pubkey) {
             this.setState({ isConnected: true, publicKey: pubkey.toString() }, () => this.refreshStakingInfo());
         }
