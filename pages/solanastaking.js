@@ -252,7 +252,10 @@ export default class Bonds extends React.Component {
                                 this.state.stakeAccounts.map((stakeAccount, index) => {
                                     return <li key={index} className='mb-8'>
                                         <div className='flex flex-col'>
-                                            <p>SOL stake : {stakeAccount.stakeBalance}</p>
+                                            <p>Balance : {stakeAccount.balance}</p>
+                                            <p>Stake state : {stakeAccount.stateStake}</p>
+                                            <p>Active stake : {stakeAccount.activeStake}</p>
+                                            <p>Rent reserve : {stakeAccount.rentReserve}</p>
                                             <p>Rewards : {stakeAccount.rewards} </p>
                                             <button
                                                 className='mt-2 px-4 py-2 bg-orange-400 text-white text-base font-medium rounded-md shadow-sm'

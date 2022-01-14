@@ -30,9 +30,15 @@ export async function getStakeAccounts() {
         });
 
     for (const stakeAccount of stakeAccounts) {
-        const stakeBalance = await connection.getBalance(stakeAccount.pubkey);
-        stakeAccount.stakeBalance = stakeAccount.account.lamports / 1000000000;
-        stakeAccount.rewards = stakeBalance / 1000000000 - stakeAccount.stakeBalance;
+        const acc = await connection.getStakeActivation(stakeAccount.pubkey);
+        const rent = await connection.getMinimumBalanceForRentExemption(stakeAccount.account.data.length);
+        const inflation = await connection.getInflationReward([stakeAccount.pubkey]);
+        
+        stakeAccount.rentReserve = rent / 1000000000;
+        stakeAccount.activeStake = acc.active / 1000000000;
+        stakeAccount.balance = stakeAccount.account.lamports / 1000000000;
+        stakeAccount.rewards = inflation[0]?.amount / 1000000000 || 0;
+        stakeAccount.stateStake = acc.state;
     }
 
     return stakeAccounts;
@@ -72,9 +78,6 @@ export async function stake(balanceToStake) {
     createAccountTransaction.partialSign(stakeAccount);
 
     await sendTx(createAccountTransaction);
-    /*let signed = await window.solana.signTransaction(createAccountTransaction);
-    let signature = await connection.sendRawTransaction(signed.serialize());
-    await connection.confirmTransaction(signature);*/
 
     // We can then delegate our stake to the voteAccount
     blockhashObj = await connection.getRecentBlockhash();
@@ -129,9 +132,6 @@ export async function withdraw(pubKey, stakeBalance){
         );
 
         await sendTx(deactivateTransaction);
-        /*let signed = await window.solana.signTransaction(deactivateTransaction);
-        let signature = await connection.sendRawTransaction(signed.serialize());
-        await connection.confirmTransaction(signature);*/
     }
 
     stakeState = await connection.getStakeActivation(pubKey);
@@ -150,13 +150,9 @@ export async function withdraw(pubKey, stakeBalance){
         );
 
         await sendTx(withdrawTransaction);
-        /*let signed = await window.solana.signTransaction(withdrawTransaction);
-        let signature = await connection.sendRawTransaction(signed.serialize());
-        await connection.confirmTransaction(signature);*/
     }
     else {
         return null;
-        //this.showError("You could withdraw your funds when your stake account will be inactive");
     }
 };
 
