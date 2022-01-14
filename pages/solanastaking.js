@@ -78,7 +78,7 @@ export default class Bonds extends React.Component {
      */
     setBalance = async () => {
         const balance = await getBalance();
-        this.setState({ balance: balance / 1000000000 });
+        this.setState({ balance: balance / web3.LAMPORTS_PER_SOL });
     };
 
     /**

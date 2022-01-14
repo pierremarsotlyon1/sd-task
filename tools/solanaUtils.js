@@ -34,10 +34,10 @@ export async function getStakeAccounts() {
         const rent = await connection.getMinimumBalanceForRentExemption(stakeAccount.account.data.length);
         const inflation = await connection.getInflationReward([stakeAccount.pubkey]);
         
-        stakeAccount.rentReserve = rent / 1000000000;
-        stakeAccount.activeStake = acc.active / 1000000000;
-        stakeAccount.balance = stakeAccount.account.lamports / 1000000000;
-        stakeAccount.rewards = inflation[0]?.amount / 1000000000 || 0;
+        stakeAccount.rentReserve = rent / web3.LAMPORTS_PER_SOL;
+        stakeAccount.activeStake = acc.active / web3.LAMPORTS_PER_SOL;
+        stakeAccount.balance = stakeAccount.account.lamports / web3.LAMPORTS_PER_SOL;
+        stakeAccount.rewards = inflation[0]?.amount / web3.LAMPORTS_PER_SOL || 0;
         stakeAccount.stateStake = acc.state;
     }
 
@@ -68,7 +68,7 @@ export async function stake(balanceToStake) {
         web3.StakeProgram.createAccount({
             fromPubkey: fromPublicKey,
             authorized: new web3.Authorized(fromPublicKey, fromPublicKey),
-            lamports: balanceToStake * 1000000000,
+            lamports: balanceToStake * web3.LAMPORTS_PER_SOL,
             lockup: new web3.Lockup(0, 0, fromPublicKey),
             stakePubkey: stakeAccount.publicKey
         })
