@@ -1,11 +1,13 @@
-import { getNetwork, getProvider, getPublicKey, getWalletType, MAINNET, PHANTOM } from "./wallet";
+import { getNetwork, getProvider, getPublicKey, getWalletType, MAINNET, PHANTOM, ZELCORE } from "./wallet";
 const web3 = require("@solana/web3.js");
+import axios from 'redaxios';
 
 export function getConnection() {
-    const currentNetwork = getNetwork();
-    const url = currentNetwork === MAINNET ? "mainnet-beta" : "devnet";
+    return new web3.Connection(getUrlConnection(), 'confirmed');
+}
 
-    return new web3.Connection(web3.clusterApiUrl(url), 'confirmed');
+export function getUrlConnection() {
+    return getNetwork() === MAINNET ? "https://solana-api.projectserum.com" : web3.clusterApiUrl("devnet");
 }
 
 export async function getStakeAccounts() {
@@ -14,37 +16,19 @@ export async function getStakeAccounts() {
         return [];
     }
 
-    const connection = getConnection();
-    const stakeAccounts = await connection.getProgramAccounts(new web3.PublicKey("Stake11111111111111111111111111111111111111"),
-        {
-            encoding: "base64",
-            commitment: "confirmed",
-            filters: [
-                {
-                    memcmp: {
-                        bytes: from.toString(),
-                        offset: 12
-                    }
-                }
-            ]
-        });
+    const res = await axios.get("/api/stakeAccounts", { params: { pubKey: from.toString(), network: getUrlConnection() } });
+    console.log(res.data.stakeAccounts);
+    return res.data.stakeAccounts;
+}
 
-    for (const stakeAccount of stakeAccounts) {
-        const acc = await connection.getStakeActivation(stakeAccount.pubkey);
-        const rent = await connection.getMinimumBalanceForRentExemption(stakeAccount.account.data.length);
-        const inflation = await connection.getInflationReward([stakeAccount.pubkey]);
-        
-        stakeAccount.rentReserve = rent / web3.LAMPORTS_PER_SOL;
-        stakeAccount.activeStake = acc.active / web3.LAMPORTS_PER_SOL;
-        stakeAccount.balance = stakeAccount.account.lamports / web3.LAMPORTS_PER_SOL;
-        stakeAccount.rewards = inflation[0]?.amount / web3.LAMPORTS_PER_SOL || 0;
-        stakeAccount.stateStake = acc.state;
-    }
-
-    return stakeAccounts;
+async function getVoteAccount() {
+    const res = await axios.get("/api/voteAccount", { params: { network: getUrlConnection(), networkId: getNetwork() } });
+    console.log(res.data.voteAccount);
+    return res.data.voteAccount;
 }
 
 export async function stake(balanceToStake) {
+    console.log("stake");
     const connection = getConnection();
 
     // To delegate our stake, we get the current vote accounts and choose the first
@@ -53,10 +37,11 @@ export async function stake(balanceToStake) {
         return null;
     }
 
+    console.log(voteAccount);
     const votePubkey = new web3.PublicKey(voteAccount.votePubkey);
 
     const fromPublicKey = await getPublicKey();
-
+    console.log(fromPublicKey.toString());
     // Create stake account to manage the staking
     const stakeAccount = web3.Keypair.generate();
 
@@ -74,6 +59,7 @@ export async function stake(balanceToStake) {
         })
     );
 
+    console.log(createAccountTransaction);
     // stakeAccount must sign the tx because it's a new account
     createAccountTransaction.partialSign(stakeAccount);
 
@@ -95,30 +81,13 @@ export async function stake(balanceToStake) {
     await sendTx(delegateTransaction);
 }
 
-async function getVoteAccount() {
-    const connection = getConnection();
-    const voteAccounts = await connection.getVoteAccounts();
-
-    if (getNetwork() === MAINNET) {
-        // We select the StakeDAO validator
-        for (const v of voteAccounts.current) {
-            if (v.votePubkey === process.env.solanaValidator) {
-                return v;
-            }
-        }
-    }
-    else {
-        return voteAccounts.current[0];
-    }
-    return null;
-}
-
 export async function withdraw(pubKey, stakeBalance){
     const connection = getConnection();
     const fromPublicKey = await getPublicKey();
     const blockhashObj = await connection.getRecentBlockhash();
 
     // If stake account desactivated, we can withdraw funds directly
+    pubKey = new web3.PublicKey(pubKey);
     let stakeState = await connection.getStakeActivation(pubKey);
     if (stakeState.state !== "inactive" && stakeState.state !== "deactivating") {
         const deactivateTransaction = new web3.Transaction({
@@ -160,16 +129,21 @@ async function sendTx(tx) {
     const connection = getConnection();
     const pubkey = await getPublicKey();
     const provider = await getProvider();
-    if (getWalletType() === PHANTOM) {
+    const walletType = getWalletType();
+    if (walletType === PHANTOM || walletType === ZELCORE) {
+        console.log("wallet type : " + walletType);
+        console.log(provider);
         const signed = await provider.signTransaction(tx);
         const signature = await connection.sendRawTransaction(signed.serialize());
-        await connection.confirmTransaction(signature);
+        await connection.confirmTransaction(signature, 'finalized');
     }
     else {
         const h = await tx.serializeMessage();
         const r = await provider.signTransaction("44'/501'", h);
         tx.addSignature(pubkey, r.signature);
         const signature = await connection.sendRawTransaction(tx.serialize());
-        await connection.confirmTransaction(signature);
+        await connection.confirmTransaction(signature, 'finalized');
     }
+
+    console.log("done");
 }
